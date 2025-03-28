@@ -22,6 +22,13 @@ def energy(v, h, W, a, b):
     
     return E
 
+def objective(p, q):
+    O = 0
+    for i in range(len(p)):
+        O += q[i]*np.log(q[i]/p[i])
+
+    return O
+
 @numba.njit
 def effectiveMagnetic(v, W, b):
     Nv = np.shape(W)[0]
@@ -66,6 +73,24 @@ def condProb(v, h, W, a, b):
 
     return prob
 
+def fullProb(v,h,W,a,b):
+    Z = ZProb(v,h,W,a,b)
+
+    Nv = len(v)
+    Nh = len(h)
+
+    probs_theory = np.zeros((2**Nv, 2**Nh))
+
+    for i in range(2**Nv):
+        v = [1 if format(i, "0" + str(Nv) + 'b')[k] == "1" else -1 for k in range(Nv)]
+        for j in range(2**Nh):
+            h = [1 if format(j, "0" + str(Nh) + 'b')[k] == "1" else -1 for k in range(Nh)]
+            
+            probs_theory[i][j] = np.exp(-energy(v,h,W,a,b))/Z
+    
+    return probs_theory, np.sum(probs_theory, axis=1), np.sum(probs_theory, axis=0) 
+
+
 @numba.njit
 def sample(v, h, W, a, b):
     m = effectiveMagnetic(h, W, a)
@@ -93,13 +118,118 @@ def getRandomRBM(Nv, Nh):
 def evolve(v,h,W,a,b,k):
 
     for _ in range(k):
-        h = sample(h,v,W,b,a)
         v = sample(v,h,W,a,b)
+        h = sample(h,v,W,b,a)
 
     return v,h
 
+def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
+
+# Training
+save = False
+
+Nv = 3
+Nh = 2
+
+M = 64
+k = 1
+eta = 0.1
+
+prob_dist=np.random.ranf(2**Nv)
+prob_dist=prob_dist/np.sum(prob_dist)
+data=np.random.choice(range(0,2**Nv),p=prob_dist,size=100000)
+
+v,h,W,a,b = getRandomRBM(Nv, Nh)
+count = 1000
+
+c = 0
+
+w_list = []
+a_list = []
+b_list = []
+o_list = []
+
+for i in range(count):
+
+    dW = np.zeros((Nv, Nh))
+    da = np.zeros(Nv)
+    db = np.zeros(Nh)
+
+    if (c+1)*M > len(data):
+        np.random.shuffle(data)
+        c = 0
+
+    batch_data = data[c*M:(c+1)*M]
+
+    for j in range(M):
+
+        v = np.array([1 if format(batch_data[j], "0" + str(Nv) + 'b')[m] == "1" else -1 for m in range(Nv)])
+        h = sample(h,v,W,b,a)
+
+        dW -= np.outer(v,h)
+        da -= v
+        db -= h
+
+        v,h = evolve(v,h,W,a,b,k)
+
+        dW += np.outer(v,h)
+        da += v
+        db += h
+
+    W -= eta*dW/M
+    a -= eta*da/M
+    b -= eta*db/M
+
+    #w_list.append(np.sum(W)/(Nv*Nh))
+    #a_list.append(np.sum(a)/len(a))
+    #b_list.append(np.sum(b)/len(b))
+    #mat, v_dist, h_dist = fullProb(v,h,W,a,b)
+    #o_list.append(objective(v_dist, prob_dist))
+
+    c += 1
+    printProgressBar(i, count, prefix = 'Progress:', suffix = 'Complete', length = 50)
+
+mat, v_dist, h_dist = fullProb(v,h,W,a,b)
+
+plt.figure(0)
+plt.plot(prob_dist)
+plt.plot(v_dist)
+
+if save:
+    plt.savefig("RBM_Images/tpvq.png")
+
+# plt.figure(1)
+# plt.plot(w_list)
+# plt.plot(a_list)
+# plt.plot(b_list)
+# plt.legend(("W", "a", "b"))
+
+# plt.figure(2)
+# plt.plot(o_list)
+
+plt.show()
+
 # Probability Distributions
-save = True
+""" save = True
 
 Nv = 5
 Nh = 2
@@ -112,15 +242,12 @@ count = 100000
 
 # p(h|v)
 
-h_list = []
-for i in range(count):
-    h_list.append(sample(h,v,W,b,a))
-
 probs_sampling = np.zeros(2**Nh)
 
-for h in h_list:
+for i in range(count):
+    h = sample(h,v,W,b,a)
     probs_sampling[int("".join(["1" if h[i] == 1 else "0" for i in range(len(h))]), 2)] += 1
-
+    
 probs_sampling /= count
 
 probs_theory = np.zeros(2**Nh)
@@ -147,13 +274,11 @@ print("Theoretical Probabilities:", probs_theory)
 print("Sum of Theoretical Probabilities:", probs_theory.sum())
 
 # P(v|h)
-v_list = []
-for i in range(count):
-    v_list.append(sample(v,h,W,a,b))
 
 probs_sampling = np.zeros(2**Nv)
 
-for v in v_list:
+for i in range(count):
+    v = sample(v,h,W,a,b)
     probs_sampling[int("".join(["1" if v[i] == 1 else "0" for i in range(len(v))]), 2)] += 1
 
 probs_sampling /= count
@@ -191,15 +316,7 @@ for i in range(count):
 
 probs_sampling /= count
 
-probs_theory = np.zeros((2**Nv, 2**Nh))
-Z = ZProb(v,h,W,a,b)
-
-for i in range(2**Nv):
-    v = [1 if format(i, "0" + str(Nv) + 'b')[k] == "1" else -1 for k in range(Nv)]
-    for j in range(2**Nh):
-        h = [1 if format(j, "0" + str(Nh) + 'b')[k] == "1" else -1 for k in range(Nh)]
-        
-        probs_theory[i][j] = np.exp(-energy(v,h,W,a,b))/Z
+probs_theory, _, _ = fullProb(v,h,W,a,b)
 
 plt.figure(2)
 
@@ -287,6 +404,4 @@ print("Sampling Probabilities:", probs_sampling)
 print("Theoretical Probabilities:", probs_theory)
 print("Sum of Theoretical Probabilities:", probs_theory.sum())
 
-plt.show()
-
-
+plt.show() """
