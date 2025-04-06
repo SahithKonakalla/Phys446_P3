@@ -52,6 +52,47 @@ def evolve(states, biases, weights):
     return step, E_list, states
 
 @numba.njit
+def evolve2(states, biases, weights, mid):
+
+    inter = np.zeros(1)
+
+    n = len(states)
+    measure = n
+    
+    step = 0
+    E_list = []
+
+    stay = True
+    while(stay):
+
+        #print("Step:", step )
+
+        i = np.random.randint(0, n)
+
+        if step % measure == 0:
+            E_list.append(Energy(states, biases, weights))
+
+        states[i] = 1 if sum(weights[i]*states) > biases[i] else -1
+
+        step += 1
+
+        stay = False
+        for j in range(n):
+            #print("j:", j)
+            if (1 if sum(weights[j]*states) > biases[j] else -1) != states[j]:
+                stay = True
+                #print("hi", j, stay)
+                break
+        
+        print(step)
+        if mid == step:
+            mid = -1
+            inter = states.copy()
+            print("hit")
+
+    return step, E_list, states, inter
+
+@numba.njit
 def evolveState(states, biases, weights):
 
     n = len(states)
@@ -263,7 +304,7 @@ plt.show()
  """
 # Fixing Images
 
-""" save = False
+save = True
 
 images = ["0000000000000100010000000000000000000000000010000000000000000001110000001000100001000001101000000001",
           "0001111000000111100000001100000000110000001111111000001100100000110000000011000000001100000000110000"]
@@ -279,13 +320,17 @@ states = removeLeft(image_arrays[0], 2)
 biases = np.ones(n)*0.5
 
 plt.figure(figsize=(10, 5))
-plt.subplot(1, 2, 1)
+plt.subplot(1, 3, 1)
 plt.title("Before")
 plt.matshow(stateToBoard(states), fignum=0)
 
-steps, energies, states = evolve(states, biases, weights)
+steps, energies, states, inter = evolve2(states, biases, weights, 100)
 
-plt.subplot(1, 2, 2)
+plt.subplot(1, 3, 2)
+plt.title("Intermediate")
+plt.matshow(stateToBoard(inter), fignum=0)
+
+plt.subplot(1, 3, 3)
 plt.title("After")
 plt.matshow(stateToBoard(states), fignum=0)
 if save:
@@ -293,7 +338,7 @@ if save:
 
 # Perturb
 
-states = perturb(image_arrays[0], 10)
+""" states = perturb(image_arrays[0], 10)
 
 plt.figure(figsize=(10, 5))
 plt.subplot(1, 2, 1)
@@ -308,8 +353,8 @@ plt.matshow(stateToBoard(states), fignum=0)
 if save:
     plt.savefig("Hopfield_Images/perturb_fix.png")
 
-plt.show() """
-
+plt.show()
+ """
 # Energies
 
 """ save = True

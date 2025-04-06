@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numba
+import torch
+import torch.utils.data
 
 @numba.njit
 def energy(v, h, W, a, b):
@@ -21,6 +23,24 @@ def energy(v, h, W, a, b):
         E += -b[j]*h[j]
     
     return E
+
+def freeEnergy(v,h,W,a,b):
+    Nv = len(v)
+    Nh = len(h)
+
+    F = 0
+
+    for i in range(2**Nh):
+        h = np.array([1 if format(i, "0" + str(Nh) + 'b')[k] == "1" else -1 for k in range(Nh)])
+        F += np.exp(-energy(v,h,W,a,b))
+
+    return -np.log(F)
+
+def freeEnergy2(v,h,W,a,b):
+    Nv = len(v)
+    Nh = len(h)
+
+    return -v @ a - np.sum(np.log(np.exp(-b-W.transpose() @ v) + np.exp(+b+W.transpose() @ v)))
 
 def objective(p, q):
     O = 0
@@ -144,11 +164,48 @@ def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, l
     if iteration == total: 
         print()
 
-# Training
-save = False
+# MNIST
 
-Nv = 3
+batch_size = 1
+train_loader = torch.utils.data.DataLoader(
+torch.utils.data.datasets.MNIST('./data',
+    train=True,
+    download = True,
+    transform = torch.utils.data.transforms.Compose(
+        [torch.utils.data.transforms.ToTensor()])
+     ),
+     batch_size=batch_size
+)
+myData=[]
+for idx, (data,target) in enumerate(train_loader):
+  myData.append(np.array(data.view(-1,784)).flatten())
+print(myData[0])
+print(np.shape(myData[0]))
+myData=np.matrix(myData)
+
+pic=np.copy(myData[0,:])
+pic=pic.reshape((28,28))
+plt.matshow(pic)
+plt.show()
+
+
+# Free energy
+""" Nv = 3
 Nh = 2
+
+count = 1000
+
+for i in range(count):
+    v,h,W,a,b = getRandomRBM(Nv, Nh)
+    
+    if np.abs(freeEnergy(v,h,W,a,b) - freeEnergy2(v,h,W,a,b)) > 1e-10:
+        print("Failed") """
+
+# Training
+""" save = True
+
+Nv = 5
+Nh = 3
 
 M = 64
 k = 1
@@ -159,7 +216,7 @@ prob_dist=prob_dist/np.sum(prob_dist)
 data=np.random.choice(range(0,2**Nv),p=prob_dist,size=100000)
 
 v,h,W,a,b = getRandomRBM(Nv, Nh)
-count = 1000
+count = 30
 
 c = 0
 
@@ -167,8 +224,11 @@ w_list = []
 a_list = []
 b_list = []
 o_list = []
+f_list = []
 
 for i in range(count):
+
+    f_list.append(freeEnergy(v,h,W,a,b))
 
     dW = np.zeros((Nv, Nh))
     da = np.zeros(Nv)
@@ -199,12 +259,6 @@ for i in range(count):
     a -= eta*da/M
     b -= eta*db/M
 
-    #w_list.append(np.sum(W)/(Nv*Nh))
-    #a_list.append(np.sum(a)/len(a))
-    #b_list.append(np.sum(b)/len(b))
-    #mat, v_dist, h_dist = fullProb(v,h,W,a,b)
-    #o_list.append(objective(v_dist, prob_dist))
-
     c += 1
     printProgressBar(i, count, prefix = 'Progress:', suffix = 'Complete', length = 50)
 
@@ -213,20 +267,26 @@ mat, v_dist, h_dist = fullProb(v,h,W,a,b)
 plt.figure(0)
 plt.plot(prob_dist)
 plt.plot(v_dist)
+plt.xlabel("Configuration")
+plt.ylabel("Probability")
+plt.title("RBM Model Learning Probability Distribution")
+plt.legend(("Data", "RBM"))
 
 if save:
-    plt.savefig("RBM_Images/tpvq.png")
+    plt.savefig("RBM_Images/tpvq.png")  
 
-# plt.figure(1)
-# plt.plot(w_list)
-# plt.plot(a_list)
-# plt.plot(b_list)
-# plt.legend(("W", "a", "b"))
+F_derv = np.diff(f_list)
 
-# plt.figure(2)
-# plt.plot(o_list)
+plt.figure(1)
+plt.plot(F_derv)
+plt.xlabel("Epoch")
+plt.ylabel("Change in Free Energy")
+plt.title("Free Energy")
 
-plt.show()
+if save:
+    plt.savefig("RBM_Images/tfe.png")  
+
+plt.show() """
 
 # Probability Distributions
 """ save = True
@@ -234,7 +294,7 @@ plt.show()
 Nv = 5
 Nh = 2
 
-k = 10
+k = 20
 
 v,h,W,a,b = getRandomRBM(Nv, Nh)
 
@@ -307,6 +367,8 @@ print("Theoretical Probabilities:", probs_theory)
 print("Sum of Theoretical Probabilities:", probs_theory.sum())
 
 # p(v,h)
+
+count = 100000
 probs_sampling = np.zeros((2**Nv, 2**Nh))
 
 for i in range(count):
@@ -355,6 +417,7 @@ print("Sampling Probabilities:", probs_sampling)
 print("Theoretical Probabilities:", probs_theory)
 print("Sum of Theoretical Probabilities:", probs_theory.sum())
 
+count = 100000
 # p(v)
 
 mat_sampling = probs_sampling.copy()
