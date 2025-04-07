@@ -4,6 +4,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import numba
 import torch
 import torch.utils.data
+from torchvision import datasets, transforms
 
 @numba.njit
 def energy(v, h, W, a, b):
@@ -41,6 +42,12 @@ def freeEnergy2(v,h,W,a,b):
     Nh = len(h)
 
     return -v @ a - np.sum(np.log(np.exp(-b-W.transpose() @ v) + np.exp(+b+W.transpose() @ v)))
+
+def freeEnergy22(v,h,W,a,b):
+    Nv = len(v)
+    Nh = len(h)
+
+    return -v @ a - np.sum(np.log(np.ones(b.shape) + np.exp(b+W.transpose() @ v)))
 
 def objective(p, q):
     O = 0
@@ -110,7 +117,6 @@ def fullProb(v,h,W,a,b):
     
     return probs_theory, np.sum(probs_theory, axis=1), np.sum(probs_theory, axis=0) 
 
-
 @numba.njit
 def sample(v, h, W, a, b):
     m = effectiveMagnetic(h, W, a)
@@ -124,14 +130,51 @@ def sample(v, h, W, a, b):
 
     return newV
 
-def getRandomRBM(Nv, Nh):
-    v = np.random.choice([1,-1], Nv)
-    h = np.random.choice([1,-1], Nh)
+@numba.njit
+def sample2(v, h, W, a, b):
+    m = effectiveMagnetic(h, W, a)
 
-    a = np.random.rand(Nv)*2-1
-    b = np.random.rand(Nh)*2-1
+    N = len(v)
 
-    W = np.random.rand(Nv,Nh)*2-1
+    newV = np.zeros(N)
+
+    for i in range(N):
+        newV[i] = 1 if np.exp(m[i])/(np.exp(m[i]) + np.exp(-m[i])) > np.random.rand() else 0
+
+    return newV
+
+@numba.njit
+def sampleProb2(v, h, W, a, b):
+    m = effectiveMagnetic(h, W, a)
+
+    N = len(v)
+
+    newV = np.zeros(N)
+
+    for i in range(N):
+        newV[i] = np.exp(m[i])/(np.exp(m[i]) + np.exp(-m[i]))
+
+    return newV
+
+def getRandomRBM(Nv, Nh, dist=1):
+    v = np.random.choice([dist,-dist], Nv)
+    h = np.random.choice([dist,-dist], Nh)
+
+    a = np.random.rand(Nv)*(2*dist)-dist
+    b = np.random.rand(Nh)*(2*dist)-dist
+
+    W = np.random.rand(Nv,Nh)*(2*dist)-dist
+
+    return v,h,W,a,b
+
+def getRandomRBM2(Nv, Nh, dist=1):
+    v = np.random.choice([1, 0], Nv)
+    h = np.random.choice([1, 0], Nh)
+
+    a = np.random.rand(Nv)*(2*dist)-dist
+    b = np.random.rand(Nh)*(2*dist)-dist
+
+    W = np.random.rand(Nv,Nh)*(2*dist)-dist
 
     return v,h,W,a,b
 
@@ -140,6 +183,14 @@ def evolve(v,h,W,a,b,k):
     for _ in range(k):
         v = sample(v,h,W,a,b)
         h = sample(h,v,W,b,a)
+
+    return v,h
+
+def evolve2(v,h,W,a,b,k):
+
+    for _ in range(k):
+        v = sample2(v,h,W,a,b)
+        h = sample2(h,v,W,b,a)
 
     return v,h
 
@@ -164,30 +215,226 @@ def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, l
     if iteration == total: 
         print()
 
-# MNIST
+def PlotMe(data, name=""):
+    n = 8
+
+    save_plot = np.zeros((1,1))
+    to_plot = np.zeros((1,1))
+
+
+    for i in range(n):
+        for j in range(n):
+
+            idx = i*n + j
+
+            if j == 0:
+                to_plot = data[idx, :].reshape((28,28))
+            else:
+                to_plot = np.hstack((to_plot, data[idx, :].reshape((28,28))))
+        
+        if i == 0:
+            save_plot = to_plot.copy()
+        else:
+            save_plot = np.vstack((save_plot, to_plot))
+
+    plt.matshow(save_plot)
+    if name != "":
+        plt.savefig("RBM_Images/" + name + ".png")
+
+# Discrimination
 
 batch_size = 1
 train_loader = torch.utils.data.DataLoader(
-torch.utils.data.datasets.MNIST('./data',
+datasets.MNIST('./data',
     train=True,
     download = True,
-    transform = torch.utils.data.transforms.Compose(
-        [torch.utils.data.transforms.ToTensor()])
+    transform = transforms.Compose(
+        [transforms.ToTensor()])
      ),
      batch_size=batch_size
 )
 myData=[]
 for idx, (data,target) in enumerate(train_loader):
   myData.append(np.array(data.view(-1,784)).flatten())
-print(myData[0])
-print(np.shape(myData[0]))
+
 myData=np.matrix(myData)
 
-pic=np.copy(myData[0,:])
-pic=pic.reshape((28,28))
-plt.matshow(pic)
-plt.show()
+h = np.load("RBM_Weights/h.npy")
+W = np.load("RBM_Weights/W.npy")
+a = np.load("RBM_Weights/a.npy")
+b = np.load("RBM_Weights/b.npy")
 
+v = np.array(myData[0, :]).flatten()
+
+print(freeEnergy22(v,h,W,a,b))
+
+v = np.random.choice([1, 0], len(v))
+
+print(freeEnergy22(v,h,W,a,b))
+
+
+# Weights
+
+""" W = np.load("RBM_Weights/W.npy")
+
+print(W.transpose().shape)
+
+PlotMe(W.transpose(), "mnist_weights")
+plt.show() """
+
+# MNIST
+
+""" batch_size = 1
+train_loader = torch.utils.data.DataLoader(
+datasets.MNIST('./data',
+    train=True,
+    download = True,
+    transform = transforms.Compose(
+        [transforms.ToTensor()])
+     ),
+     batch_size=batch_size
+)
+myData=[]
+for idx, (data,target) in enumerate(train_loader):
+  myData.append(np.array(data.view(-1,784)).flatten())
+
+myData=np.matrix(myData)
+
+#PlotMe(myData[0:64,:])
+
+Nv = 784
+Nh = 400
+
+M = 64
+k = 1
+eta = 0.1
+
+count = 200
+c = 0 """
+
+
+""" v,h,W,a,b = getRandomRBM(Nv, Nh, 0.01)
+b = np.zeros(b.shape)
+
+for i in range(count):
+
+    dW = np.zeros((Nv, Nh))
+    da = np.zeros(Nv)
+    db = np.zeros(Nh)
+
+    #if (c+1)*M > len(data):
+    #    np.random.shuffle(data)
+    #c = 0
+
+    batch_data = myData[c*M:(c+1)*M, :]
+
+    for j in range(M):
+
+        #print(batch_data[j, :][].shape)
+        v = np.array([1 if (batch_data[j, :])[0, m] > np.random.rand() else 0 for m in range(Nv)])
+        h = sample2(h,v,W,b,a)
+
+        dW -= np.outer(v,h)
+        da -= v
+        db -= h
+
+        v,h = evolve2(v,h,W,a,b,k)
+
+        dW += np.outer(v,h)
+        da += v
+        db += h
+
+    W -= eta*dW/M
+    a -= eta*da/M
+    b -= eta*db/M
+
+    c += 1
+    printProgressBar(i, count, prefix = 'Progress:', suffix = 'Complete', length = 50)
+
+np.save("RBM_Weights/v", v)
+np.save("RBM_Weights/h", h)
+np.save("RBM_Weights/W", W)
+np.save("RBM_Weights/a", a)
+np.save("RBM_Weights/b", b) """
+
+""" v = np.load("RBM_Weights/v.npy")
+h = np.load("RBM_Weights/h.npy")
+W = np.load("RBM_Weights/W.npy")
+a = np.load("RBM_Weights/a.npy")
+b = np.load("RBM_Weights/b.npy")
+
+visible=np.copy(myData[0:M,:])
+
+PlotMe(visible, "mnist_original")
+
+vst = None
+for i in range(M):
+    v2 = np.array(visible[i, :]).flatten()
+
+    h = sample2(h,v2,W,b,a)
+    v2 = sample2(v2,h,W,a,b)
+
+    if i == 0:
+        vst = v2.copy()
+    else:
+        vst = np.vstack((vst, v2))
+
+PlotMe(vst, "mnist_sampled")
+
+vst = None
+for i in range(M):
+    v2 = np.array(visible[i, :]).flatten()
+
+    h = sample2(h,v2,W,b,a)
+    v2 = sampleProb2(v2,h,W,a,b)
+
+    if i == 0:
+        vst = v2.copy()
+    else:
+        vst = np.vstack((vst, v2))
+
+PlotMe(vst, "mnist_prob")
+
+vst = None
+for i in range(M):
+    v2 = np.array(visible[i, :]).flatten()
+
+    k = 100
+    for j in range(k-1):
+        h = sample2(h,v2,W,b,a)
+        v2 = sample2(v2,h,W,a,b)
+        printProgressBar(i*M + j, k*M, prefix = 'Progress:', suffix = 'Complete', length = 50)
+    
+    h = sample2(h,v2,W,b,a)
+    v2 = sampleProb2(v2,h,W,a,b)
+
+    if i == 0:
+        vst = v2.copy()
+    else:
+        vst = np.vstack((vst, v2))
+
+PlotMe(vst, "mnist_resampled")
+
+mask = np.random.rand(*visible.shape) > 0.5
+visible[mask] = 0
+
+PlotMe(visible, "mnist_broken")
+
+vst = None
+for i in range(M):
+    v2 = np.array(visible[i, :]).flatten()
+
+    h = sample2(h,v2,W,b,a)
+    v2 = sampleProb2(v2,h,W,a,b)
+
+    if i == 0:
+        vst = v2.copy()
+    else:
+        vst = np.vstack((vst, v2))
+
+PlotMe(vst, "mnist_fixed")
+
+plt.show() """
 
 # Free energy
 """ Nv = 3
