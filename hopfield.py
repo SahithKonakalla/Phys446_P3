@@ -159,8 +159,8 @@ def makeWeights(images):
 
         weights += np.outer(image, image.transpose())
 
-    #for i in range(n):
-    #    weights[i][i] = 0
+    for i in range(n):
+        weights[i][i] = 0
 
     return weights/m
 
@@ -223,17 +223,26 @@ def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, l
     if iteration == total: 
         print()
 
+def flip(index, binary):
+    binlist = list(binary)
+    #print(binlist)
+    #print(index)
+    binlist[index] = "1" if binlist[index] == "0" else "0"
+    #print(binlist)
+    return "".join(binlist)
 
 # Energy Landscape
 
 # https://dreampuf.github.io/GraphvizOnline/?engine=dot#digraph%20G%20%7B%0D%0A18%20%5Bfillcolor%3Dred%2C%20style%3Dfilled%5D%3B%0D%0A25%20%5Bfillcolor%3Dred%2C%20style%3Dfilled%5D%3B%0D%0A0%20-%3E%2016%3B%0D%0A0%20-%3E%202%3B%0D%0A1%20-%3E%2017%3B%0D%0A1%20-%3E%209%3B%0D%0A2%20-%3E%2018%3B%0D%0A3%20-%3E%2019%3B%0D%0A3%20-%3E%202%3B%0D%0A4%20-%3E%2036%3B%0D%0A4%20-%3E%206%3B%0D%0A5%20-%3E%2037%3B%0D%0A5%20-%3E%2013%3B%0D%0A6%20-%3E%2038%3B%0D%0A7%20-%3E%2039%3B%0D%0A7%20-%3E%206%3B%0D%0A8%20-%3E%2024%3B%0D%0A8%20-%3E%209%3B%0D%0A9%20-%3E%2025%3B%0D%0A10%20-%3E%2026%3B%0D%0A10%20-%3E%202%3B%0D%0A11%20-%3E%2027%3B%0D%0A11%20-%3E%209%3B%0D%0A12%20-%3E%2044%3B%0D%0A12%20-%3E%2013%3B%0D%0A13%20-%3E%2045%3B%0D%0A14%20-%3E%2046%3B%0D%0A14%20-%3E%206%3B%0D%0A15%20-%3E%2047%3B%0D%0A15%20-%3E%2013%3B%0D%0A16%20-%3E%2018%3B%0D%0A17%20-%3E%2025%3B%0D%0A19%20-%3E%2018%3B%0D%0A20%20-%3E%2016%3B%0D%0A20%20-%3E%2022%3B%0D%0A21%20-%3E%2029%3B%0D%0A21%20-%3E%2017%3B%0D%0A22%20-%3E%2018%3B%0D%0A23%20-%3E%2019%3B%0D%0A23%20-%3E%2022%3B%0D%0A24%20-%3E%2025%3B%0D%0A26%20-%3E%2018%3B%0D%0A27%20-%3E%2025%3B%0D%0A28%20-%3E%2024%3B%0D%0A28%20-%3E%2029%3B%0D%0A29%20-%3E%2025%3B%0D%0A30%20-%3E%2022%3B%0D%0A30%20-%3E%2026%3B%0D%0A31%20-%3E%2027%3B%0D%0A31%20-%3E%2029%3B%0D%0A32%20-%3E%2036%3B%0D%0A32%20-%3E%2034%3B%0D%0A33%20-%3E%2041%3B%0D%0A33%20-%3E%2037%3B%0D%0A34%20-%3E%2038%3B%0D%0A35%20-%3E%2039%3B%0D%0A35%20-%3E%2034%3B%0D%0A36%20-%3E%2038%3B%0D%0A37%20-%3E%2045%3B%0D%0A39%20-%3E%2038%3B%0D%0A40%20-%3E%2044%3B%0D%0A40%20-%3E%2041%3B%0D%0A41%20-%3E%2045%3B%0D%0A42%20-%3E%2034%3B%0D%0A42%20-%3E%2046%3B%0D%0A43%20-%3E%2047%3B%0D%0A43%20-%3E%2041%3B%0D%0A44%20-%3E%2045%3B%0D%0A46%20-%3E%2038%3B%0D%0A47%20-%3E%2045%3B%0D%0A48%20-%3E%2016%3B%0D%0A48%20-%3E%2050%3B%0D%0A49%20-%3E%2017%3B%0D%0A49%20-%3E%2057%3B%0D%0A50%20-%3E%2018%3B%0D%0A51%20-%3E%2019%3B%0D%0A51%20-%3E%2050%3B%0D%0A52%20-%3E%2036%3B%0D%0A52%20-%3E%2054%3B%0D%0A53%20-%3E%2037%3B%0D%0A53%20-%3E%2061%3B%0D%0A54%20-%3E%2038%3B%0D%0A55%20-%3E%2039%3B%0D%0A55%20-%3E%2054%3B%0D%0A56%20-%3E%2024%3B%0D%0A56%20-%3E%2057%3B%0D%0A57%20-%3E%2025%3B%0D%0A58%20-%3E%2026%3B%0D%0A58%20-%3E%2050%3B%0D%0A59%20-%3E%2027%3B%0D%0A59%20-%3E%2057%3B%0D%0A60%20-%3E%2044%3B%0D%0A60%20-%3E%2061%3B%0D%0A61%20-%3E%2045%3B%0D%0A62%20-%3E%2046%3B%0D%0A62%20-%3E%2054%3B%0D%0A63%20-%3E%2047%3B%0D%0A63%20-%3E%2061%3B%0D%0A%7D
 
-""" n = 6
+n = 6
 
-memories = [np.random.choice([1,-1], n) for i in range(2)]
+#memories = [np.random.choice([1,-1], n) for i in range(2)]
+
+memories = [np.array([1,1,-1,1,-1,1]), np.array([-1,1,1,-1,-1,-1])]
 
 weights = makeWeights(memories)
-biases = np.ones(n)*0
+biases = np.random.rand(n)*0.1
 
 f = open("graphviz.txt", "w")
 
@@ -250,7 +259,7 @@ for i in range(2**n):
         if binary != new_binary:
             f.write(str(int(binary,2)) + " -> " + str(int(new_binary,2)) + ";\n")   
 
-f.write("}") """
+f.write("}")
 
 # Number of Memories
 
@@ -309,7 +318,7 @@ save = True
 images = ["0000000000000100010000000000000000000000000010000000000000000001110000001000100001000001101000000001",
           "0001111000000111100000001100000000110000001111111000001100100000110000000011000000001100000000110000"]
 
-n = len(images[0])
+""" n = len(images[0])
 
 image_arrays = [binaryToState(images[i]) for i in range(len(images))]
 weights = makeWeights(image_arrays)
@@ -334,7 +343,7 @@ plt.subplot(1, 3, 3)
 plt.title("After")
 plt.matshow(stateToBoard(states), fignum=0)
 if save:
-    plt.savefig("Hopfield_Images/remove_fix.png")
+    plt.savefig("Hopfield_Images/remove_fix.png") """
 
 # Perturb
 
